@@ -81,7 +81,7 @@ c3_chart_internal_fn.init = function () {
     $$.initParams();
 
     if (config.data_url) {
-        $$.convertUrlToData(config.data_url, config.data_mimeType, config.data_keys, $$.initWithData);
+        $$.convertUrlToData(config.data_url, config.data_mimeType, config.data_headers, config.data_keys, $$.initWithData);
     }
     else if (config.data_json) {
         $$.initWithData($$.convertJsonToData(config.data_json, config.data_keys));
@@ -251,6 +251,10 @@ c3_chart_internal_fn.initWithData = function (data) {
         .style("overflow", "hidden")
         .on('mouseenter', function () { return config.onmouseover.call($$); })
         .on('mouseleave', function () { return config.onmouseout.call($$); });
+
+    if ($$.config.svg_classname) {
+        $$.svg.attr('class', $$.config.svg_classname);
+    }
 
     // Define defs
     defs = $$.svg.append("defs");

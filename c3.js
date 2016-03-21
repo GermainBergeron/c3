@@ -86,7 +86,7 @@
         $$.initParams();
 
         if (config.data_url) {
-            $$.convertUrlToData(config.data_url, config.data_mimeType, config.data_keys, $$.initWithData);
+            $$.convertUrlToData(config.data_url, config.data_mimeType, config.data_headers, config.data_keys, $$.initWithData);
         }
         else if (config.data_json) {
             $$.initWithData($$.convertJsonToData(config.data_json, config.data_keys));
@@ -256,6 +256,10 @@
             .style("overflow", "hidden")
             .on('mouseenter', function () { return config.onmouseover.call($$); })
             .on('mouseleave', function () { return config.onmouseout.call($$); });
+
+        if ($$.config.svg_classname) {
+            $$.svg.attr('class', $$.config.svg_classname);
+        }
 
         // Define defs
         defs = $$.svg.append("defs");
@@ -1064,6 +1068,7 @@
     c3_chart_internal_fn.getDefaultConfig = function () {
         var config = {
             bindto: '#chart',
+            svg_classname: undefined,
             size_width: undefined,
             size_height: undefined,
             padding_left: undefined,
@@ -1118,6 +1123,7 @@
             data_onselected: function () {},
             data_onunselected: function () {},
             data_url: undefined,
+            data_headers: undefined,
             data_json: undefined,
             data_rows: undefined,
             data_columns: undefined,
@@ -1181,7 +1187,8 @@
             axis_y_label: {},
             axis_y_tick_format: undefined,
             axis_y_tick_outer: true,
-            axis_y_tick_values: null,
+            axis_y_tick_values: null,        
+            axis_y_tick_rotate: 0,
             axis_y_tick_count: undefined,
             axis_y_tick_time_value: undefined,
             axis_y_tick_time_interval: undefined,
@@ -2013,9 +2020,15 @@
         return current;
     };
 
-    c3_chart_internal_fn.convertUrlToData = function (url, mimeType, keys, done) {
+    c3_chart_internal_fn.convertUrlToData = function (url, mimeType, headers, keys, done) {
         var $$ = this, type = mimeType ? mimeType : 'csv';
-        $$.d3.xhr(url, function (error, data) {
+        var req = $$.d3.xhr(url);
+        if (headers) {
+            Object.keys(headers).forEach(function (header) {
+                req.header(header, headers[header]);
+            });
+        }
+        req.get(function (error, data) {
             var d;
             if (!data) {
                 throw new Error(error.responseURL + ' ' + error.status + ' (' + error.statusText + ')');
@@ -2251,7 +2264,7 @@
             $$.load($$.convertDataToTargets(args.data), args);
         }
         else if (args.url) {
-            $$.convertUrlToData(args.url, args.mimeType, args.keys, function (data) {
+            $$.convertUrlToData(args.url, args.mimeType, args.headers, args.keys, function (data) {
                 $$.load($$.convertDataToTargets(data), args);
             });
         }
@@ -2740,11 +2753,17 @@
         var $$ = this, config = $$.config, h = 30;
         if (axisId === 'x' && !config.axis_x_show) { return 8; }
         if (axisId === 'x' && config.axis_x_height) { return config.axis_x_height; }
-        if (axisId === 'y' && !config.axis_y_show) { return config.legend_show && !$$.isLegendRight && !$$.isLegendInset ? 10 : 1; }
+        if (axisId === 'y' && !config.axis_y_show) { 
+            return config.legend_show && !$$.isLegendRight && !$$.isLegendInset ? 10 : 1; 
+        }
         if (axisId === 'y2' && !config.axis_y2_show) { return $$.rotated_padding_top; }
         // Calculate x axis height when tick rotated
         if (axisId === 'x' && !config.axis_rotated && config.axis_x_tick_rotate) {
             h = 30 + $$.axis.getMaxTickWidth(axisId) * Math.cos(Math.PI * (90 - config.axis_x_tick_rotate) / 180);
+        }
+        // Calculate y axis height when tick rotated
+        if (axisId === 'y' && config.axis_rotated && config.axis_y_tick_rotate) {
+            h = 30 + $$.axis.getMaxTickWidth(axisId) * Math.cos(Math.PI * (90 - config.axis_y_tick_rotate) / 180);
         }
         return h + ($$.axis.getLabelPositionById(axisId).isInner ? 0 : 10) + (axisId === 'y2' ? -10 : 0);
     };
@@ -2894,7 +2913,7 @@
     };
     c3_chart_internal_fn.redrawLine = function (drawLine, withTransition) {
         return [
-            (withTransition ? this.mainLine.transition() : this.mainLine)
+            (withTransition ? this.mainLine.transition(Math.random().toString()) : this.mainLine)
                 .attr("d", drawLine)
                 .style("stroke", this.color)
                 .style("opacity", 1)
@@ -3070,7 +3089,7 @@
     };
     c3_chart_internal_fn.redrawArea = function (drawArea, withTransition) {
         return [
-            (withTransition ? this.mainArea.transition() : this.mainArea)
+            (withTransition ? this.mainArea.transition(Math.random().toString()) : this.mainArea)
                 .attr("d", drawArea)
                 .style("fill", this.color)
                 .style("opacity", this.orgAreaOpacity)
@@ -3153,12 +3172,12 @@
     c3_chart_internal_fn.redrawCircle = function (cx, cy, withTransition) {
         var selectedCircles = this.main.selectAll('.' + CLASS.selectedCircle);
         return [
-            (withTransition ? this.mainCircle.transition() : this.mainCircle)
+            (withTransition ? this.mainCircle.transition(Math.random().toString()) : this.mainCircle)
                 .style('opacity', this.opacityForCircle.bind(this))
                 .style("fill", this.color)
                 .attr("cx", cx)
                 .attr("cy", cy),
-            (withTransition ? selectedCircles.transition() : selectedCircles)
+            (withTransition ? selectedCircles.transition(Math.random().toString()) : selectedCircles)
                 .attr("cx", cx)
                 .attr("cy", cy)
         ];
@@ -3266,7 +3285,7 @@
     };
     c3_chart_internal_fn.redrawBar = function (drawBar, withTransition) {
         return [
-            (withTransition ? this.mainBar.transition() : this.mainBar)
+            (withTransition ? this.mainBar.transition(Math.random().toString()) : this.mainBar)
                 .attr('d', drawBar)
                 .style("fill", this.color)
                 .style("opacity", 1)
@@ -4389,17 +4408,16 @@
         }
         return tickValues;
     };
-    Axis.prototype.getYAxis = function getYAxis(scale, orient, tickFormat, tickValues, withOuterTick, withoutTransition) {
-        var axisParams = {
-            withOuterTick: withOuterTick,
-            withoutTransition: withoutTransition,
-        },
-            $$ = this.owner,
-            d3 = $$.d3,
-            config = $$.config,
-            axis = c3_axis(d3, axisParams).scale(scale).orient(orient).tickFormat(tickFormat);
+    Axis.prototype.getYAxis = function getYAxis(scale, orient, tickFormat, tickValues, withOuterTick, withoutTransition, withoutRotateTickText) {
+        var $$ = this.owner, config = $$.config,
+            axisParams = {
+                withOuterTick: withOuterTick,
+                withoutTransition: withoutTransition,
+                tickTextRotate: withoutRotateTickText ? 0 : config.axis_y_tick_rotate
+            },
+            axis = c3_axis($$.d3, axisParams).scale(scale).orient(orient).tickFormat(tickFormat);
         if ($$.isTimeSeriesY()) {
-            axis.ticks(d3.time[config.axis_y_tick_time_value], config.axis_y_tick_time_interval);
+            axis.ticks($$.d3.time[config.axis_y_tick_time_value], config.axis_y_tick_time_interval);
         } else {
             axis.tickValues(tickValues);
         }
@@ -4589,10 +4607,10 @@
             targetsToShow = $$.filterTargetsToShow($$.data.targets);
             if (id === 'y') {
                 scale = $$.y.copy().domain($$.getYDomain(targetsToShow, 'y'));
-                axis = this.getYAxis(scale, $$.yOrient, config.axis_y_tick_format, $$.yAxisTickValues, false, true);
+                axis = this.getYAxis(scale, $$.yOrient, config.axis_y_tick_format, $$.yAxisTickValues, false, true, true);
             } else if (id === 'y2') {
                 scale = $$.y2.copy().domain($$.getYDomain(targetsToShow, 'y2'));
-                axis = this.getYAxis(scale, $$.y2Orient, config.axis_y2_tick_format, $$.y2AxisTickValues, false, true);
+                axis = this.getYAxis(scale, $$.y2Orient, config.axis_y2_tick_format, $$.y2AxisTickValues, false, true, true);
             } else {
                 scale = $$.x.copy().domain($$.getXDomain(targetsToShow));
                 axis = this.getXAxis(scale, $$.xOrient, $$.xAxisTickFormat, $$.xAxisTickValues, false, true, true);
@@ -4784,7 +4802,12 @@
     c3_chart_internal_fn.updateAngle = function (d) {
         var $$ = this, config = $$.config,
             found = false, index = 0,
-            gMin = config.gauge_min, gMax = config.gauge_max, gTic, gValue;
+            gMin, gMax, gTic, gValue;
+
+        if (!config) {
+            return null;
+        }
+
         $$.pie($$.filterTargetsToShow($$.data.targets)).forEach(function (t) {
             if (! found && t.data.id === d.data.id) {
                 found = true;
@@ -4800,6 +4823,8 @@
             d.endAngle = d.startAngle;
         }
         if ($$.isGaugeType(d.data)) {
+            gMin = config.gauge_min;
+            gMax = config.gauge_max;
             gTic = (Math.PI) / (gMax - gMin);
             gValue = d.value < gMin ? 0 : d.value < gMax ? d.value - gMin : (gMax - gMin);
             d.startAngle = -1 * (Math.PI / 2);
@@ -5519,7 +5544,7 @@
             .remove();
     };
     c3_chart_internal_fn.redrawBarForSubchart = function (drawBarOnSub, withTransition, duration) {
-        (withTransition ? this.contextBar.transition().duration(duration) : this.contextBar)
+        (withTransition ? this.contextBar.transition(Math.random().toString()).duration(duration) : this.contextBar)
             .attr('d', drawBarOnSub)
             .style('opacity', 1);
     };
@@ -5537,7 +5562,7 @@
             .remove();
     };
     c3_chart_internal_fn.redrawLineForSubchart = function (drawLineOnSub, withTransition, duration) {
-        (withTransition ? this.contextLine.transition().duration(duration) : this.contextLine)
+        (withTransition ? this.contextLine.transition(Math.random().toString()).duration(duration) : this.contextLine)
             .attr("d", drawLineOnSub)
             .style('opacity', 1);
     };
@@ -5556,7 +5581,7 @@
             .remove();
     };
     c3_chart_internal_fn.redrawAreaForSubchart = function (drawAreaOnSub, withTransition, duration) {
-        (withTransition ? this.contextArea.transition().duration(duration) : this.contextArea)
+        (withTransition ? this.contextArea.transition(Math.random().toString()).duration(duration) : this.contextArea)
             .attr("d", drawAreaOnSub)
             .style("fill", this.color)
             .style("opacity", this.orgAreaOpacity);
@@ -6204,6 +6229,10 @@
         // update xs if specified
         if (args.xs) {
             $$.addXs(args.xs);
+        }
+        // update names if exists
+        if ('names' in args) {
+            c3_chart_fn.data.names.bind(this)(args.names);
         }
         // update classes if exists
         if ('classes' in args) {
